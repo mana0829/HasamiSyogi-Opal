@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hasami Shogi - Premium Strategy Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'board-bg': '#E5D3B3',
+                        'board-accent': '#C9B596',
+                        'crimson-red': '#B91C1C',
+                        'navy-blue': '#1E3A8A',
+                        'premium-gold': '#D4AF37',
+                    },
+                    fontFamily: {
+                        'outfit': ['Outfit', 'sans-serif'],
+                        'playfair': ['Playfair Display', 'serif'],
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                        'inner-board': 'inset 0 2px 10px rgba(0,0,0,0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --board-bg: #E5D3B3;
+            --cell-border: #8B7355;
+            --black-piece: #1E3A8A; /* Navy Blue for Black Player */
+            --white-piece: #B91C1C; /* Crimson Red for White Player */
+            --highlight-move: rgba(74, 222, 128, 0.4);
+            --highlight-selected: rgba(212, 175, 55, 0.3);
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1c2c 0%, #4a192c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            border: 1px border rgba(255, 255, 255, 0.1);
+            box-shadow: var(--tw-shadow-glass);
+            margin: 20px;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            background-color: var(--board-bg);
+            border: 4px solid #5D4037;
+            border-radius: 8px;
+            box-shadow: var(--tw-shadow-inner-board);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell {
+            border: 0.5px solid var(--cell-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .cell:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+
+        .cell.selected {
+            background-color: var(--highlight-selected) !important;
+        }
+
+        .cell.valid-move::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background-color: var(--highlight-move);
+            border-radius: 50%;
+            position: absolute;
+            z-index: 10;
+        }
+
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 5;
+        }
+
+        .piece.black {
+            background: radial-gradient(circle at 30% 30%, #3a5bb5, #1e3a8a);
+            border: 2px solid #0f172a;
+        }
+
+        .piece.white {
+            background: radial-gradient(circle at 30% 30%, #ef4444, #b91c1c);
+            border: 2px solid #7f1d1d;
+        }
+
+        .piece:active {
+            transform: scale(0.9);
+        }
+
+        /* Glassmorphism glass UI */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .winner-msg {
+            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes bounceIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 480px) {
+            #game-container {
+                margin: 10px;
+                padding: 15px;
+            }
+            .cell.valid-move::after {
+                width: 8px;
+                height: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container" class="mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="font-playfair text-4xl md:text-5xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-premium-gold to-white font-extrabold mb-1">
+                HASAMI SHOGI
+            </h1>
+            <p class="text-xs uppercase tracking-widest text-gray-400 font-light">Traditional Japanese Strategy</p>
+        </header>
+
+        <div id="status-area" class="w-full mb-6 text-center">
+            <div id="turn-indicator" class="glass-panel inline-block px-8 py-3 rounded-full text-lg font-semibold tracking-wide transition-all duration-500 shadow-lg">
+                Player 1's Turn
+            </div>
+            <div id="winner-display" class="winner-msg hidden text-2xl md:text-3xl font-bold mt-4 text-green-400 drop-shadow-md">
+                GAME OVER!
+            </div>
+        </div>
+
+        <div id="board">
+            <!-- Board cells will be generated here -->
+        </div>
+
+        <div id="controls" class="mt-8">
+            <button onclick="resetGame()" class="group relative px-10 py-4 bg-premium-gold text-black font-bold rounded-xl overflow-hidden shadow-xl transition-all hover:scale-105 active:scale-95">
+                <span class="relative z-10">RESET GAME</span>
+                <div class="absolute inset-0 bg-white/20 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
+            </button>
+        </div>
+        
+        <div class="mt-6 text-gray-500 text-[10px] uppercase tracking-tighter opacity-50">
+            Rules: Capture by flanking an opponent vertically or horizontally
+        </div>
+    </div>
+
+    <script>
+        const BOARD_SIZE = 9;
+        const EMPTY = 0;
+        const WHITE = 2; // Red pieces
+        const BLACK = 1; // Blue pieces
+
+        let board = [];
+        let currentPlayer = BLACK;
+        let selectedSquare = null;
+        let validMoves = [];
+        let gameOver = false;
+
+        const boardElement = document.getElementById('board');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const winnerDisplay = document.getElementById('winner-display');
+
+        function initBoard() {
+            board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
+            
+            // Initial positions
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                board[0][c] = WHITE; // Top row
+                board[8][c] = BLACK; // Bottom row
+            }
+
+            gameOver = false;
+            currentPlayer = BLACK;
+            selectedSquare = null;
+            validMoves = [];
+            
+            winnerDisplay.classList.add('hidden');
+            turnIndicator.classList.remove('hidden');
+            updateTurnDisplay();
+            renderBoard();
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) {
+                        cell.classList.add('selected');
+                    }
+
+                    if (validMoves.some(m => m.r === r && m.c === c)) {
+                        cell.classList.add('valid-move');
+                    }
+
+                    if (board[r][c] !== EMPTY) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[r][c] === BLACK ? 'black' : 'white'}`;
+                        cell.appendChild(piece);
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function handleCellClick(r, c) {
+            if (gameOver) return;
+
+            const clickedContent = board[r][c];
+
+            if (clickedContent === currentPlayer) {
+                // Select piece
+                selectedSquare = { r, c };
+                calculateValidMoves(r, c);
+                renderBoard();
+            } else if (selectedSquare && validMoves.some(m => m.r === r && m.c === c)) {
+                // Move piece
+                makeMove(selectedSquare.r, selectedSquare.c, r, c);
+            } else {
+                // Deselect
+                selectedSquare = null;
+                validMoves = [];
+                renderBoard();
+            }
+        }
+
+        function calculateValidMoves(r, c) {
+            validMoves = [];
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+            directions.forEach(([dr, dc]) => {
+                let currR = r + dr;
+                let currC = c + dc;
+                while (currR >= 0 && currR < BOARD_SIZE && currC >= 0 && currC < BOARD_SIZE && board[currR][currC] === EMPTY) {
+                    validMoves.push({ r: currR, c: currC });
+                    currR += dr;
+                    currC += dc;
+                }
+            });
+        }
+
+        function makeMove(fromR, fromC, toR, toC) {
+            board[toR][toC] = board[fromR][fromC];
+            board[fromR][fromC] = EMPTY;
+
+            checkCaptures(toR, toC);
+            checkCornerCaptures();
+
+            selectedSquare = null;
+            validMoves = [];
+
+            if (checkWinCondition()) {
+                endGame();
+            } else {
+                currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+                updateTurnDisplay();
+            }
+            renderBoard();
+        }
+
+        function checkCaptures(r, c) {
+            const opponent = currentPlayer === BLACK ? WHITE : BLACK;
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+            directions.forEach(([dr, dc]) => {
+                let currR = r + dr;
+                let currC = c + dc;
+                let path = [];
+
+                while (currR >= 0 && currR < BOARD_SIZE && currC >= 0 && currC < BOARD_SIZE) {
+                    if (board[currR][currC] === opponent) {
+                        path.push({ r: currR, c: currC });
+                    } else if (board[currR][currC] === currentPlayer) {
+                        // Flank detected
+                        path.forEach(pos => {
+                            board[pos.r][pos.c] = EMPTY;
+                        });
+                        break;
+                    } else {
+                        // Empty cell stops the check
+                        break;
+                    }
+                    currR += dr;
+                    currC += dc;
+                }
+            });
+        }
+
+        function checkCornerCaptures() {
+            const opponent = currentPlayer === BLACK ? WHITE : BLACK;
+            const corners = [
+                { r: 0, c: 0, adj: [{ r: 0, c: 1 }, { r: 1, c: 0 }] },
+                { r: 0, c: 8, adj: [{ r: 0, c: 7 }, { r: 1, c: 8 }] },
+                { r: 8, c: 0, adj: [{ r: 8, c: 1 }, { r: 7, c: 0 }] },
+                { r: 8, c: 8, adj: [{ r: 8, c: 7 }, { r: 7, c: 8 }] }
+            ];
+
+            corners.forEach(corner => {
+                if (board[corner.r][corner.c] === opponent) {
+                    const isTrapped = corner.adj.every(a => board[a.r][a.c] === currentPlayer);
+                    if (isTrapped) {
+                        board[corner.r][corner.c] = EMPTY;
+                    }
+                }
+            });
+        }
+
+        function checkWinCondition() {
+            let blackCount = 0;
+            let whiteCount = 0;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === BLACK) blackCount++;
+                    if (board[r][c] === WHITE) whiteCount++;
+                }
+            }
+
+            if (blackCount < 2) {
+                winnerDisplay.innerText = "PLAYER 2 (RED) WINS!";
+                winnerDisplay.style.color = "var(--white-piece)";
+                return true;
+            }
+            if (whiteCount < 2) {
+                winnerDisplay.innerText = "PLAYER 1 (BLUE) WINS!";
+                winnerDisplay.style.color = "var(--black-piece)";
+                return true;
+            }
+            return false;
+        }
+
+        function endGame() {
+            gameOver = true;
+            winnerDisplay.classList.remove('hidden');
+            turnIndicator.classList.add('hidden');
+        }
+
+        function updateTurnDisplay() {
+            if (currentPlayer === BLACK) {
+                turnIndicator.innerText = "Player 1's Turn (Blue)";
+                turnIndicator.style.borderBottom = "3px solid var(--black-piece)";
+            } else {
+                turnIndicator.innerText = "Player 2's Turn (Red)";
+                turnIndicator.style.borderBottom = "3px solid var(--white-piece)";
+            }
+        }
+
+        function resetGame() {
+            initBoard();
+        }
+
+        // Initialize on load
+        initBoard();
+    </script>
+</body>
+</html>
